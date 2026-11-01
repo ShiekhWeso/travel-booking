@@ -1,0 +1,181 @@
+from datetime import date
+from decimal import Decimal
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import String, cast, extract, or_, select
+from sqlalchemy.orm import Session
+
+from .db import get_db
+from .models import Booking, Employee, Flight, Payment
+from .schemas import BookingIn, BookingList, BookingOut, PaymentIn
+from .security import current_user
+
+router = APIRouter(
+    prefix="/bookings", tags=["bookings"], dependencies=[Depends(current_user)]
+)
+
+
+def to_out(b: Booking) -> BookingOut:
+    today = date.today()
+    paid = sum((p.amount for p in b.payments if p.paid_date), Decimal(0))
+
+    if today < b.trip_start:
+        trip_status = "upcoming"
+    elif today <= b.trip_end:
+        trip_status = "in_progress"
+    else:
+        trip_status = "completed"
+
+    overdue = any(
+        p.paid_date is None and p.due_date and p.due_date < today
+        for p in b.payments
+    )
+    if overdue:
+        payment_status = "late"
+    elif paid == 0:
+        payment_status = "unpaid"
+    elif paid < b.sale_price:
+        payment_status = "partial"
+    else:
+        payment_status = "paid"
+
+    out = BookingOut.model_validate(b)
+    return out.model_copy(
+        update={
+            "paid": paid,
+            "remaining": b.sale_price - paid,
+            "expected_profit": b.sale_price - b.total_cost,
+            "trip_status": trip_status,
+            "starts_soon": today < b.trip_start
+            and (b.trip_start - today).days <= 3,
+            "payment_status": payment_status,
+        }
+    )
+
+
+@router.post("", response_model=BookingOut)
+def create_booking(
+    data: BookingIn,
+    db: Session = Depends(get_db),
+    user: Employee = Depends(current_user),
+):
+    if data.trip_end < data.trip_start:
+        raise HTTPException(422, "trip_end must be after trip_start")
+    fields = data.model_dump(exclude={"flights", "payments", "employee_id"})
+    booking = Booking(
+        **fields,
+        employee_id=data.employee_id or user.id,
+        flights=[Flight(**f.model_dump()) for f in data.flights],
+        payments=[Payment(**p.model_dump()) for p in data.payments],
+    )
+    db.add(booking)
+    db.commit()
+    db.refresh(booking)
+    return to_out(booking)
+
+
+@router.get("/{booking_id}", response_model=BookingOut)
+def get_booking(booking_id: int, db: Session = Depends(get_db)):
+    booking = db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(404, "Booking not found")
+    return to_out(booking)
+
+@router.get("", response_model=BookingList)
+def list_bookings(
+    q: str | None = None,
+    month: int | None = None,
+    year: int | None = None,
+    employee_id: int | None = None,
+    status: str | None = None,
+    payment_status: str | None = None,
+    db: Session = Depends(get_db),
+):
+    stmt = select(Booking).order_by(Booking.trip_start.desc())
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                Booking.customer_name.ilike(like),
+                Booking.phone.ilike(like),
+                Booking.destination.ilike(like),
+                Booking.passport_no.ilike(like),
+                cast(Booking.booking_no, String).ilike(like),
+            )
+        )
+    if month:
+        stmt = stmt.where(extract("month", Booking.trip_start) == month)
+    if year:
+        stmt = stmt.where(extract("year", Booking.trip_start) == year)
+    if employee_id:
+        stmt = stmt.where(Booking.employee_id == employee_id)
+
+    items = [to_out(b) for b in db.scalars(stmt)]
+    if status:
+        items = [i for i in items if i.trip_status == status]
+    if payment_status:
+        items = [i for i in items if i.payment_status == payment_status]
+    return BookingList(count=len(items), items=items)
+
+@router.put("/{booking_id}", response_model=BookingOut)
+def update_booking(
+    booking_id: int, data: BookingIn, db: Session = Depends(get_db)
+):
+    booking = db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(404, "Booking not found")
+    if data.trip_end < data.trip_start:
+        raise HTTPException(422, "trip_end must be after trip_start")
+    fields = data.model_dump(exclude={"flights", "payments", "employee_id"})
+    for key, value in fields.items():
+        setattr(booking, key, value)
+    if data.employee_id:
+        booking.employee_id = data.employee_id
+    booking.flights = [Flight(**f.model_dump()) for f in data.flights]
+    booking.payments = [Payment(**p.model_dump()) for p in data.payments]
+    db.commit()
+    db.refresh(booking)
+    return to_out(booking)
+
+
+@router.delete("/{booking_id}")
+def delete_booking(booking_id: int, db: Session = Depends(get_db)):
+    booking = db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(404, "Booking not found")
+    db.delete(booking)
+    db.commit()
+    return {"deleted": booking_id}
+
+
+@router.post("/{booking_id}/payments", response_model=BookingOut)
+def add_payment(
+    booking_id: int, data: PaymentIn, db: Session = Depends(get_db)
+):
+    booking = db.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(404, "Booking not found")
+    booking.payments.append(Payment(**data.model_dump()))
+    db.commit()
+    db.refresh(booking)
+    return to_out(booking)
+
+
+@router.post("/{booking_id}/payments/{payment_id}/pay", response_model=BookingOut)
+def mark_paid(
+    booking_id: int,
+    payment_id: int,
+    paid_date: date | None = None,
+    method: str | None = None,
+    db: Session = Depends(get_db),
+):
+    payment = db.get(Payment, payment_id)
+    if not payment or payment.booking_id != booking_id:
+        raise HTTPException(404, "Payment not found")
+    payment.paid_date = paid_date or date.today()
+    if method:
+        payment.method = method
+    db.commit()
+    booking = db.get(Booking, booking_id)
+    db.refresh(booking)
+    return to_out(booking)
