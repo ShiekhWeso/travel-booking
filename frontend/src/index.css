@@ -32,3 +32,6 @@ label{font-size:13px;color:var(--mu);display:block;margin-bottom:4px}
 .modal{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal>div{background:var(--card);border-radius:12px;padding:18px;max-width:460px;width:100%;max-height:80vh;overflow:auto}
 .pre{white-space:pre-wrap;line-height:1.7}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.chip{background:var(--bg);border:1px solid var(--bd);border-radius:99px;padding:4px 12px;font-size:13px}
+.danger{border-color:var(--rd);color:var(--rd)}

@@ -12,6 +12,9 @@ export default function Bookings({onEdit}) {
   const [data, setData] = useState({ count: 0, items: [] });
   const [invoice, setInvoice] = useState(null);
   const [error, setError] = useState("");
+  const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [stats, setStats] = useState(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     api("/employees").then(setEmployees).catch(() => {});
@@ -21,6 +24,11 @@ export default function Bookings({onEdit}) {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     if (month) params.set("month", month);
+    if (year) params.set("year", year);
+    const sp = new URLSearchParams();
+    if (month) sp.set("month", month);
+    if (year) sp.set("year", year);
+    api("/stats/monthly?" + sp).then(setStats).catch(() => {});
     if (employee) params.set("employee_id", employee);
     if (status) params.set("status", status);
     const t = setTimeout(() => {
@@ -29,7 +37,18 @@ export default function Bookings({onEdit}) {
         .catch((e) => setError(e.message));
     }, 300);
     return () => clearTimeout(t);
-  }, [q, month, employee, status]);
+  }, [q, month, year, employee, status, tick]);
+
+  async function remove(b) {
+    if (!window.confirm(`حذف الحجز #${b.booking_no} للعميل ${b.customer_name}؟ لا يمكن التراجع.`))
+      return;
+    try {
+      await api(`/bookings/${b.id}`, { method: "DELETE" });
+      setTick((t) => t + 1);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
 
   return (
     <div className="card">
@@ -57,8 +76,23 @@ export default function Bookings({onEdit}) {
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
+        <select value={year} onChange={(e) => setYear(e.target.value)}>
+          <option value="">كل السنوات</option>
+          {[1, 0, -1].map((d) => {
+            const y = new Date().getFullYear() + d;
+            return <option key={y} value={y}>{y}</option>;
+          })}
+        </select>
       </div>
 
+      {stats && (
+        <div className="chips">
+          <span className="chip">الإجمالي: <b>{stats.total}</b></span>
+          {stats.by_employee.map((e) => (
+            <span className="chip" key={e.id}>{e.name}: <b>{e.count}</b></span>
+          ))}
+        </div>
+      )}
       {error && <p className="err">{error}</p>}
       <p style={{ color: "var(--mu)", margin: "0 0 10px" }}>
         عدد الحجوزات: <b style={{ color: "var(--tx)" }}>{data.count}</b>
@@ -90,6 +124,9 @@ export default function Bookings({onEdit}) {
                 </td>
                 <td>
                   <button className="sm" onClick={() => onEdit(b)}>تعديل</button>
+                </td>
+                <td>
+                  <button className="sm danger" onClick={() => remove(b)}>حذف</button>
                 </td>
               </tr>
             ))}
