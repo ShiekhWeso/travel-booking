@@ -29,3 +29,6 @@ label{font-size:13px;color:var(--mu);display:block;margin-bottom:4px}
 .sum{display:flex;gap:16px;flex-wrap:wrap;font-weight:700}
 .err{color:var(--rd);margin:8px 0}
 .login{max-width:360px;margin:12vh auto;padding:0 12px} 
+.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal>div{background:var(--card);border-radius:12px;padding:18px;max-width:460px;width:100%;max-height:80vh;overflow:auto}
+.pre{white-space:pre-wrap;line-height:1.7}
