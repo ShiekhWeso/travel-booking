@@ -8,6 +8,7 @@ from .bookings import router as bookings_router
 
 from fastapi.middleware.cors import CORSMiddleware
 from .employees import router as employees_router
+from .dashboard import router as dashboard_router
 
 app = FastAPI(title="Travel Booking")
 app.add_middleware(
@@ -19,6 +20,7 @@ app.add_middleware(
 app.include_router(employees_router)
 app.include_router(auth_router)
 app.include_router(bookings_router)
+app.include_router(dashboard_router)
 
 
 @app.get("/health")

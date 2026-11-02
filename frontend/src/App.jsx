@@ -2,6 +2,7 @@ import { useState } from "react";
 import Login from "./Login";
 import Bookings from "./Bookings";
 import BookingForm from "./BookingForm";
+import Dashboard from "./Dashboard";
 import { getToken, setToken } from "./api";
 
 const TABS = [
@@ -12,7 +13,7 @@ const TABS = [
 
 export default function App() {
   const [logged, setLogged] = useState(!!getToken());
-  const [tab, setTab] = useState("t");
+  const [tab, setTab] = useState("d");
   const [editing, setEditing] = useState(null);
 
   if (!logged) return <Login onDone={() => setLogged(true)} />;
@@ -39,7 +40,7 @@ export default function App() {
         {tab === "t" && (
           <Bookings onEdit={(b) => { setEditing(b); setTab("n"); }} />
         )}
-        {tab === "d" && <div className="card">قريبًا</div>}
+        {tab === "d" && <Dashboard />}
         {tab === "n" && (
           <BookingForm
             key={editing?.id || "new"}
