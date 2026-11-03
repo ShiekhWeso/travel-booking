@@ -11,10 +11,12 @@ from .employees import router as employees_router
 from .dashboard import router as dashboard_router
 from .stats import router as stats_router
 
+from .config import settings;
+
 app = FastAPI(title="Travel Booking")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.cors_origins.split(","),
     allow_methods=["*"],
     allow_headers=["*"]
 )
