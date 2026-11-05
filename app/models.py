@@ -18,6 +18,7 @@ class Employee(Base):
     email: Mapped[str] = mapped_column(unique=True)
     password_hash: Mapped[str]
     is_active: Mapped[bool] = mapped_column(default=True)
+    role: Mapped[str] = mapped_column(default="employee")
 
 
 class Booking(Base):

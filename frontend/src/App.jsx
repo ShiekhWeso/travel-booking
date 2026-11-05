@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Login from "./Login";
 import Bookings from "./Bookings";
 import BookingForm from "./BookingForm";
 import Dashboard from "./Dashboard";
-import { getToken, setToken } from "./api";
+import { api, getToken, setToken } from "./api";
 
 const TABS = [
   ["d", "لوحة التحكم"],
@@ -16,6 +16,12 @@ export default function App() {
   const [tab, setTab] = useState("d");
   const [editing, setEditing] = useState(null);
 
+  const [me, setMe] = useState(null);
+  useEffect(() => {
+    if (logged) api("/auth/me").then(setMe).catch(() => {});
+  }, [logged]);
+  const isAdmin = me?.role === "admin";
+
   if (!logged) return <Login onDone={() => setLogged(true)} />;
 
   function go(k) {
@@ -27,7 +33,9 @@ export default function App() {
     <>
       <header>
         <span>نظام إدارة الحجوزات والرحلات</span>
-        <button onClick={() => { setToken(null); setLogged(false); }}>خروج</button>
+        <button onClick={() => { setToken(null); setLogged(false); setMe(null); }}>
+          خروج {me ? `(${me.name})` : ""}
+        </button>
       </header>
       <nav>
         {TABS.map(([k, label]) => (

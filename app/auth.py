@@ -26,4 +26,4 @@ def login(
 
 @router.get("/me")
 def me(user: Employee = Depends(current_user)):
-    return {"id": user.id, "name": user.name, "email": user.email}
+    return {"id": user.id, "name": user.name, "email": user.email, "role": user.role}
