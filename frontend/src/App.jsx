@@ -15,14 +15,16 @@ export default function App() {
   const [logged, setLogged] = useState(!!getToken());
   const [tab, setTab] = useState("d");
   const [editing, setEditing] = useState(null);
-
   const [me, setMe] = useState(null);
+
   useEffect(() => {
     if (logged) api("/auth/me").then(setMe).catch(() => {});
   }, [logged]);
-  const isAdmin = me?.role === "admin";
 
   if (!logged) return <Login onDone={() => setLogged(true)} />;
+  if (!me) return <div className="card">جاري التحميل...</div>;
+
+  const isAdmin = me.role === "admin";
 
   function go(k) {
     setEditing(null);
@@ -34,7 +36,7 @@ export default function App() {
       <header>
         <span>نظام إدارة الحجوزات والرحلات</span>
         <button onClick={() => { setToken(null); setLogged(false); setMe(null); }}>
-          خروج {me ? `(${me.name})` : ""}
+          خروج ({me.name})
         </button>
       </header>
       <nav>
@@ -46,13 +48,17 @@ export default function App() {
       </nav>
       <main>
         {tab === "t" && (
-          <Bookings onEdit={(b) => { setEditing(b); setTab("n"); }} />
+          <Bookings
+            isAdmin={isAdmin}
+            onEdit={(b) => { setEditing(b); setTab("n"); }}
+          />
         )}
-        {tab === "d" && <Dashboard />}
+        {tab === "d" && <Dashboard isAdmin={isAdmin} />}
         {tab === "n" && (
           <BookingForm
             key={editing?.id || "new"}
             booking={editing}
+            isAdmin={isAdmin}
             onSaved={() => go("t")}
           />
         )}

@@ -23,8 +23,8 @@ function initial(b) {
     intl_details: fl("international")?.details || "",
     dom_at: fl("domestic")?.departs_at?.slice(0, 16) || "",
     dom_details: fl("domestic")?.details || "",
-    total_cost: b ? Number(b.total_cost) : "",
-    sale_price: b ? Number(b.sale_price) : "",
+    total_cost: b?.total_cost != null ? Number(b.total_cost) : "",
+    sale_price: b?.sale_price != null ? Number(b.sale_price) : "",
     invoice_note: b?.invoice_note || "",
     notes: b?.notes || "",
     payments: (b?.payments || []).map((p) => ({
@@ -36,15 +36,16 @@ function initial(b) {
   };
 }
 
-export default function BookingForm({ booking, onSaved }) {
+export default function BookingForm({ booking, onSaved, isAdmin }) {
   const [f, setF] = useState(() => initial(booking));
   const [employees, setEmployees] = useState([]);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
   useEffect(() => {
-    api("/employees").then(setEmployees).catch(() => {});
-  }, []);
+    if (isAdmin) api("/employees").then(setEmployees).catch(() => {});
+  }, [isAdmin]);
 
   const paid = f.payments.reduce(
     (s, p) => s + (p.paid_date ? Number(p.amount) || 0 : 0), 0);
@@ -62,6 +63,8 @@ export default function BookingForm({ booking, onSaved }) {
   }
 
   async function save() {
+    if (saving) return;
+    setSaving(true);
     setError("");
     const flights = [];
     if (f.intl_at)
@@ -101,6 +104,7 @@ export default function BookingForm({ booking, onSaved }) {
       onSaved();
     } catch (e) {
       setError(e.message);
+      setSaving(false);
     }
   }
 
@@ -119,15 +123,17 @@ export default function BookingForm({ booking, onSaved }) {
           {input("اسم المسافر الرئيسي", "customer_name")}
           {input("رقم الهاتف", "phone", "tel")}
           {input("رقم جواز السفر", "passport_no")}
-          <div>
-            <label>الموظف المسؤول</label>
-            <select value={f.employee_id} onChange={(e) => set("employee_id", e.target.value)}>
-              <option value="">أنا</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>
+          {isAdmin && (
+            <div>
+              <label>الموظف المسؤول</label>
+              <select value={f.employee_id} onChange={(e) => set("employee_id", e.target.value)}>
+                <option value="">أنا</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label>أسماء بقية المسافرين</label>
             <textarea rows="2" value={f.other_travelers}
@@ -163,46 +169,50 @@ export default function BookingForm({ booking, onSaved }) {
         </div>
       </div>
 
-      <div className="card">
-        <h3>المبالغ والدفعات</h3>
-        <div className="f">
-          {input("التكلفة الإجمالية", "total_cost", "number")}
-          {input("سعر البيع للعميل", "sale_price", "number")}
-        </div>
-        <p style={{ color: "var(--mu)", fontSize: 13 }}>
-          الدفعات (المبلغ، الاستحقاق، تاريخ السداد، الطريقة)
-        </p>
-        {f.payments.map((p, i) => (
-          <div className="pay" key={i}>
-            <input type="number" placeholder="المبلغ" value={p.amount}
-              onChange={(e) => setPayment(i, "amount", e.target.value)} />
-            <input type="date" title="الاستحقاق" value={p.due_date}
-              onChange={(e) => setPayment(i, "due_date", e.target.value)} />
-            <input type="date" title="تاريخ السداد" value={p.paid_date}
-              onChange={(e) => setPayment(i, "paid_date", e.target.value)} />
-            <input placeholder="الطريقة" value={p.method}
-              onChange={(e) => setPayment(i, "method", e.target.value)} />
+      {isAdmin && (
+        <div className="card">
+          <h3>المبالغ والدفعات</h3>
+          <div className="f">
+            {input("التكلفة الإجمالية", "total_cost", "number")}
+            {input("سعر البيع للعميل", "sale_price", "number")}
           </div>
-        ))}
-        <button className="sm" onClick={() =>
-          set("payments", [...f.payments, { amount: "", due_date: "", paid_date: "", method: "" }])}>
-          + إضافة دفعة
-        </button>
-        <p className="sum">
-          <span>المدفوع: ${paid}</span>
-          <span>المتبقي: ${remaining}</span>
-          <span>الربح المتوقع: ${profit}</span>
-        </p>
-      </div>
+          <p style={{ color: "var(--mu)", fontSize: 13 }}>
+            الدفعات (المبلغ، الاستحقاق، تاريخ السداد، الطريقة)
+          </p>
+          {f.payments.map((p, i) => (
+            <div className="pay" key={i}>
+              <input type="number" placeholder="المبلغ" value={p.amount}
+                onChange={(e) => setPayment(i, "amount", e.target.value)} />
+              <input type="date" title="الاستحقاق" value={p.due_date}
+                onChange={(e) => setPayment(i, "due_date", e.target.value)} />
+              <input type="date" title="تاريخ السداد" value={p.paid_date}
+                onChange={(e) => setPayment(i, "paid_date", e.target.value)} />
+              <input placeholder="الطريقة" value={p.method}
+                onChange={(e) => setPayment(i, "method", e.target.value)} />
+            </div>
+          ))}
+          <button className="sm" onClick={() =>
+            set("payments", [...f.payments, { amount: "", due_date: "", paid_date: "", method: "" }])}>
+            + إضافة دفعة
+          </button>
+          <p className="sum">
+            <span>المدفوع: ${paid}</span>
+            <span>المتبقي: ${remaining}</span>
+            <span>الربح المتوقع: ${profit}</span>
+          </p>
+        </div>
+      )}
 
       <div className="card">
-        <h3>الفاتورة والملاحظات</h3>
+        <h3>{isAdmin ? "الفاتورة والملاحظات" : "الملاحظات"}</h3>
         <div className="f">
-          <div>
-            <label>الفاتورة (تفاصيل التكاليف وترتيب الرحلة)</label>
-            <textarea rows="4" value={f.invoice_note}
-              onChange={(e) => set("invoice_note", e.target.value)} />
-          </div>
+          {isAdmin && (
+            <div>
+              <label>الفاتورة (تفاصيل التكاليف وترتيب الرحلة)</label>
+              <textarea rows="4" value={f.invoice_note}
+                onChange={(e) => set("invoice_note", e.target.value)} />
+            </div>
+          )}
           <div>
             <label>ملاحظات إضافية</label>
             <textarea rows="4" value={f.notes}
@@ -212,7 +222,7 @@ export default function BookingForm({ booking, onSaved }) {
       </div>
 
       {error && <p className="err">{error}</p>}
-      <button className="btn" onClick={save}>حفظ الحجز</button>
+      <button className="btn" onClick={save} disabled={saving}>حفظ الحجز</button>
     </>
   );
 }

@@ -16,17 +16,23 @@ def monthly(
     month: int | None = None,
     year: int | None = None,
     db: Session = Depends(get_db),
+    user: Employee = Depends(current_user),
 ):
     conds = []
     if month:
         conds.append(extract("month", Booking.trip_start) == month)
     if year:
         conds.append(extract("year", Booking.trip_start) == year)
+        
+    emp_cond = Employee.is_active
+    if user.role != "admin":
+        conds.append(Booking.employee_id == user.id)
+        emp_cond = and_(Employee.is_active, Employee.id == user.id)
 
     rows = db.execute(
         select(Employee.id, Employee.name, func.count(Booking.id))
         .outerjoin(Booking, and_(Booking.employee_id == Employee.id, *conds))
-        .where(Employee.is_active)
+        .where(emp_cond)
         .group_by(Employee.id, Employee.name)
         .order_by(Employee.name)
     ).all()

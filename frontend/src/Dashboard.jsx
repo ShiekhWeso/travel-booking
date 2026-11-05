@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 
-export default function Dashboard() {
+export default function Dashboard({ isAdmin }) {
   const [d, setD] = useState(null);
   const [error, setError] = useState("");
 
@@ -29,6 +29,9 @@ export default function Dashboard() {
     </div>
   );
 
+  const soon = (n) =>
+    n === 0 ? "اليوم" : n === 1 ? "غدًا" : n === 2 ? "بعد يومين" : `بعد ${n} أيام`;
+
   return (
     <>
       <div className="grid">
@@ -44,7 +47,9 @@ export default function Dashboard() {
         <div className="wrap">
           <table>
             <thead>
-              <tr><th>العميل</th><th>الوجهة</th><th>تاريخ السفر</th><th>المدة المتبقية</th></tr>
+              <tr>
+                <th>العميل</th><th>الوجهة</th><th>تاريخ السفر</th><th>المدة المتبقية</th>
+              </tr>
             </thead>
             <tbody>
               {d.upcoming_trips.map((t) => (
@@ -52,9 +57,7 @@ export default function Dashboard() {
                   <td>
                     {t.customer_name}
                     {t.starts_soon && (
-                      <span className="b soon">
-                        {t.days_left === 0 ? "اليوم" : t.days_left === 1 ? "غدًا" : t.days_left === 2 ? "بعد يومين" : `بعد ${t.days_left} أيام`}
-                      </span>
+                      <span className="b soon">{soon(t.days_left)}</span>
                     )}
                   </td>
                   <td>{t.destination}</td>
@@ -69,37 +72,43 @@ export default function Dashboard() {
 
       <div className="card">
         <h3>الدفعات المستحقة والمتأخرة</h3>
-        {d.payments.length === 0? (
-            <p style={{ color: "var(--mu)" }}>لا توجد دفعات مستحقة أو متأخرة</p>
+        {d.payments.length === 0 ? (
+          <p style={{ color: "var(--mu)" }}>لا توجد دفعات مستحقة أو متأخرة 👌</p>
         ) : (
-            <div className="wrap">
-                <table>
-                <thead>
-                    <tr>
-                    <th>العميل</th><th>الهاتف</th><th>المبلغ</th>
-                    <th>الاستحقاق</th><th>الحالة</th><th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {d.payments.map((p) => (
-                    <tr key={p.payment_id}>
-                        <td>{p.customer_name}</td>
-                        <td>{p.phone}</td>
-                        <td>${Number(p.amount)}</td>
-                        <td>{p.due_date}</td>
-                        <td>
-                        <span className={`b ${p.late ? "late" : "partial"}`}>
-                            {p.late ? "متأخر" : "مستحق"}
-                        </span>
-                        </td>
-                        <td>
+          <div className="wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>العميل</th>
+                  <th>الهاتف</th>
+                  {isAdmin && <th>المبلغ</th>}
+                  <th>الاستحقاق</th>
+                  <th>الحالة</th>
+                  {isAdmin && <th></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {d.payments.map((p) => (
+                  <tr key={p.payment_id}>
+                    <td>{p.customer_name}</td>
+                    <td>{p.phone}</td>
+                    {isAdmin && <td>${Number(p.amount)}</td>}
+                    <td>{p.due_date}</td>
+                    <td>
+                      <span className={`b ${p.late ? "late" : "partial"}`}>
+                        {p.late ? "متأخر" : "مستحق"}
+                      </span>
+                    </td>
+                    {isAdmin && (
+                      <td>
                         <button className="sm" onClick={() => pay(p)}>تم السداد</button>
-                        </td>
-                    </tr>
-                    ))}
-                </tbody>
-                </table>
-            </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </>

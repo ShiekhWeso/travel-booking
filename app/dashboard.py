@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from .bookings import to_out
 from .db import get_db
-from .models import Booking
+from .models import Booking, Employee
 from .security import current_user
 
 router = APIRouter(
@@ -15,9 +15,14 @@ router = APIRouter(
 
 
 @router.get("")
-def dashboard(db: Session = Depends(get_db)):
+def dashboard(
+    db: Session = Depends(get_db), user: Employee = Depends(current_user)
+):
     today = date.today()
-    bookings = list(db.scalars(select(Booking)))
+    stmt = select(Booking)
+    if user.role != "admin":
+        stmt = stmt.where(Booking.employee_id == user.id)
+    bookings = list(db.scalars(stmt))
     outs = [to_out(b) for b in bookings]
 
     payments = []
@@ -31,7 +36,7 @@ def dashboard(db: Session = Depends(get_db)):
                         "booking_no": b.booking_no,
                         "customer_name": b.customer_name,
                         "phone": b.phone,
-                        "amount": p.amount,
+                        "amount": p.amount if user.role == "admin" else None,
                         "due_date": p.due_date,
                         "late": p.due_date < today,
                     }
