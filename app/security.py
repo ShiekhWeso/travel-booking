@@ -40,3 +40,8 @@ def current_user(
     if not employee or not employee.is_active:
         raise HTTPException(401, "Account not found")
     return employee
+
+def require_admin(user: Employee = Depends(current_user)) -> Employee:
+    if user.role != "admin":
+        raise HTTPException(403, "Admins only")
+    return user

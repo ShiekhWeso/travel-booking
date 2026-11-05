@@ -8,14 +8,22 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import Booking, Employee, Flight, Payment
 from .schemas import BookingIn, BookingList, BookingOut, PaymentIn
-from .security import current_user
+from .security import current_user, require_admin
 
 router = APIRouter(
     prefix="/bookings", tags=["bookings"], dependencies=[Depends(current_user)]
 )
 
+def is_admin(user: Employee) -> bool:
+    return user.role == "admin"
 
-def to_out(b: Booking) -> BookingOut:
+def own_or_404(db: Session, booking_id: int, user: Employee) -> Booking:
+    booking = db.get(Booking, booking_id)
+    if not booking or (not is_admin(user) and booking.employee_id != user.id):
+        raise HTTPException(404, "Booking not found")
+    return booking
+
+def to_out(b: Booking, user: Employee | None = None) -> BookingOut:
     today = date.today()
     paid = sum((p.amount for p in b.payments if p.paid_date), Decimal(0))
 
@@ -40,7 +48,8 @@ def to_out(b: Booking) -> BookingOut:
         payment_status = "paid"
 
     out = BookingOut.model_validate(b)
-    return out.model_copy(
+    
+    result = out.model_copy(
         update={
             "paid": paid,
             "remaining": b.sale_price - paid,
@@ -51,6 +60,19 @@ def to_out(b: Booking) -> BookingOut:
             "payment_status": payment_status,
         }
     )
+    if user is not None and not is_admin(user):
+        result = result.model_copy(
+            update={
+                "total_cost": None,
+                "sale_price": None,
+                "invoice_note": None,
+                "payments": [],
+                "paid": None,
+                "remaining": None,
+                "expected_profit": None,
+            }
+        )
+    return result
 
 
 @router.post("", response_model=BookingOut)
@@ -59,6 +81,13 @@ def create_booking(
     db: Session = Depends(get_db),
     user: Employee = Depends(current_user),
 ):
+    if not is_admin(user):
+        data.employee_id = user.id
+        data.total_cost = Decimal(0)
+        data.sale_price = Decimal(0)
+        data.invoice_note = None
+        data.payments = []
+        
     if data.trip_end < data.trip_start:
         raise HTTPException(422, "trip_end must be after trip_start")
     fields = data.model_dump(exclude={"flights", "payments", "employee_id"})
@@ -71,15 +100,15 @@ def create_booking(
     db.add(booking)
     db.commit()
     db.refresh(booking)
-    return to_out(booking)
-
+    return to_out(booking, user)
 
 @router.get("/{booking_id}", response_model=BookingOut)
-def get_booking(booking_id: int, db: Session = Depends(get_db)):
-    booking = db.get(Booking, booking_id)
-    if not booking:
-        raise HTTPException(404, "Booking not found")
-    return to_out(booking)
+def get_booking(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    user: Employee = Depends(current_user),
+):
+    return to_out(own_or_404(db, booking_id, user), user)
 
 @router.get("", response_model=BookingList)
 def list_bookings(
@@ -90,8 +119,13 @@ def list_bookings(
     status: str | None = None,
     payment_status: str | None = None,
     db: Session = Depends(get_db),
+    user: Employee = Depends(current_user),
 ):
     stmt = select(Booking).order_by(Booking.trip_start.desc())
+    
+    if not is_admin(user):
+        stmt = stmt.where(Booking.employee_id == user.id)
+    
     if q:
         like = f"%{q}%"
         stmt = stmt.where(
@@ -110,7 +144,7 @@ def list_bookings(
     if employee_id:
         stmt = stmt.where(Booking.employee_id == employee_id)
 
-    items = [to_out(b) for b in db.scalars(stmt)]
+    items = [to_out(b, user) for b in db.scalars(stmt)]
     if status:
         items = [i for i in items if i.trip_status == status]
     if payment_status:
@@ -119,27 +153,32 @@ def list_bookings(
 
 @router.put("/{booking_id}", response_model=BookingOut)
 def update_booking(
-    booking_id: int, data: BookingIn, db: Session = Depends(get_db)
+    booking_id: int,
+    data: BookingIn,
+    db: Session = Depends(get_db),
+    user: Employee = Depends(current_user),
 ):
-    booking = db.get(Booking, booking_id)
-    if not booking:
-        raise HTTPException(404, "Booking not found")
+    booking = own_or_404(db, booking_id, user)
     if data.trip_end < data.trip_start:
         raise HTTPException(422, "trip_end must be after trip_start")
     fields = data.model_dump(exclude={"flights", "payments", "employee_id"})
+    if not is_admin(user):
+        for k in ("total_cost", "sale_price", "invoice_note"):
+            fields.pop(k)
     for key, value in fields.items():
         setattr(booking, key, value)
-    if data.employee_id:
-        booking.employee_id = data.employee_id
+    if is_admin(user):
+        if data.employee_id:
+            booking.employee_id = data.employee_id
+        booking.payments = [Payment(**p.model_dump()) for p in data.payments]
     booking.flights = [Flight(**f.model_dump()) for f in data.flights]
-    booking.payments = [Payment(**p.model_dump()) for p in data.payments]
     db.commit()
     db.refresh(booking)
-    return to_out(booking)
+    return to_out(booking, user)
 
 
 @router.delete("/{booking_id}")
-def delete_booking(booking_id: int, db: Session = Depends(get_db)):
+def delete_booking(booking_id: int, db: Session = Depends(get_db), user: Employee = Depends(require_admin),):
     booking = db.get(Booking, booking_id)
     if not booking:
         raise HTTPException(404, "Booking not found")
@@ -150,7 +189,8 @@ def delete_booking(booking_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{booking_id}/payments", response_model=BookingOut)
 def add_payment(
-    booking_id: int, data: PaymentIn, db: Session = Depends(get_db)
+    booking_id: int, data: PaymentIn, db: Session = Depends(get_db),
+    user: Employee = Depends(require_admin)
 ):
     booking = db.get(Booking, booking_id)
     if not booking:
@@ -158,7 +198,7 @@ def add_payment(
     booking.payments.append(Payment(**data.model_dump()))
     db.commit()
     db.refresh(booking)
-    return to_out(booking)
+    return to_out(booking, user)
 
 
 @router.post("/{booking_id}/payments/{payment_id}/pay", response_model=BookingOut)
@@ -168,6 +208,7 @@ def mark_paid(
     paid_date: date | None = None,
     method: str | None = None,
     db: Session = Depends(get_db),
+    user: Employee = Depends(require_admin)
 ):
     payment = db.get(Payment, payment_id)
     if not payment or payment.booking_id != booking_id:
@@ -178,4 +219,4 @@ def mark_paid(
     db.commit()
     booking = db.get(Booking, booking_id)
     db.refresh(booking)
-    return to_out(booking)
+    return to_out(booking, user)

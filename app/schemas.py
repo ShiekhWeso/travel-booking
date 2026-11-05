@@ -63,17 +63,17 @@ class BookingOut(BaseModel):
     trip_start: date
     trip_end: date
     services: list[str]
-    total_cost: Decimal
-    sale_price: Decimal
+    total_cost: Decimal | None
+    sale_price: Decimal | None
     invoice_note: str | None
     notes: str | None
     extra: dict
     flights: list[FlightOut]
     payments: list[PaymentOut]
     # calculated automatically
-    paid: Decimal = Decimal(0)
-    remaining: Decimal = Decimal(0)
-    expected_profit: Decimal = Decimal(0)
+    paid: Decimal | None = None
+    remaining: Decimal | None = None
+    expected_profit: Decimal | None = None
     trip_status: str = ""
     starts_soon: bool = False
     payment_status: str = ""
