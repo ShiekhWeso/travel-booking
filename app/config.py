@@ -5,5 +5,6 @@ class Settings(BaseSettings):
     secret_key: str
     model_config = SettingsConfigDict(env_file=".env")
     cors_origins: str = "http://localhost:5173"
+    timezone: str = "Africa/Cairo"
     
 settings = Settings()

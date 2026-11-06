@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import ARRAY, ForeignKey, Numeric, Text, text
+from sqlalchemy import ARRAY, ForeignKey, Numeric, Text
+from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -26,9 +27,9 @@ class Booking(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     booking_no: Mapped[int] = mapped_column(
-        server_default=text("nextval('booking_no_seq')")
+        server_default=sql_text("nextval('booking_no_seq')")
     )
-    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    created_at: Mapped[datetime] = mapped_column(server_default=sql_text("now()"))
     employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"))
     customer_name: Mapped[str]
     phone: Mapped[str]
@@ -77,3 +78,35 @@ class Payment(Base):
     due_date: Mapped[date | None]
     paid_date: Mapped[date | None]
     method: Mapped[str | None]
+
+
+class Reminder(Base):
+    __tablename__ = "reminders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    booking_id: Mapped[int] = mapped_column(
+        ForeignKey("bookings.id", ondelete="CASCADE")
+    )
+    remind_on: Mapped[date]
+    text: Mapped[str] = mapped_column(Text)
+    done: Mapped[bool] = mapped_column(default=False)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("employees.id"))
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    to_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"))
+    text: Mapped[str] = mapped_column(Text)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("employees.id"))
+    created_at: Mapped[datetime] = mapped_column(server_default=sql_text("now()"))
+
+
+class AlertRead(Base):
+    __tablename__ = "alert_reads"
+
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"), primary_key=True
+    )
+    alert_key: Mapped[str] = mapped_column(primary_key=True)

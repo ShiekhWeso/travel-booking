@@ -10,6 +10,7 @@ dependencies = [
   "pyjwt",
   "bcrypt",
   "python-multipart",
+  "tzdata"
 ]
 
 [tool.vercel]
