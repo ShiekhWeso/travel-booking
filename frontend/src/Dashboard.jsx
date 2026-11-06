@@ -73,7 +73,7 @@ export default function Dashboard({ isAdmin }) {
       <div className="card">
         <h3>الدفعات المستحقة والمتأخرة</h3>
         {d.payments.length === 0 ? (
-          <p style={{ color: "var(--mu)" }}>لا توجد دفعات مستحقة أو متأخرة 👌</p>
+          <p style={{ color: "var(--mu)" }}>لا توجد دفعات مستحقة أو متأخرة!</p>
         ) : (
           <div className="wrap">
             <table>

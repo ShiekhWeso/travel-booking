@@ -21,8 +21,10 @@ function initial(b) {
     services: b?.services || [],
     intl_at: fl("international")?.departs_at?.slice(0, 16) || "",
     intl_details: fl("international")?.details || "",
+    intl_arr: fl("international")?.arrives_at?.slice(0, 16) || "",
     dom_at: fl("domestic")?.departs_at?.slice(0, 16) || "",
     dom_details: fl("domestic")?.details || "",
+    dom_arr: fl("domestic")?.arrives_at?.slice(0, 16) || "",
     total_cost: b?.total_cost != null ? Number(b.total_cost) : "",
     sale_price: b?.sale_price != null ? Number(b.sale_price) : "",
     invoice_note: b?.invoice_note || "",
@@ -68,9 +70,9 @@ export default function BookingForm({ booking, onSaved, isAdmin }) {
     setError("");
     const flights = [];
     if (f.intl_at)
-      flights.push({ kind: "international", departs_at: f.intl_at, details: f.intl_details || null });
+      flights.push({ kind: "international", departs_at: f.intl_at, arrives_at: f.intl_arr || null, details: f.intl_details || null });
     if (f.dom_at)
-      flights.push({ kind: "domestic", departs_at: f.dom_at, details: f.dom_details || null });
+      flights.push({ kind: "domestic", departs_at: f.dom_at, arrives_at: f.dom_arr || null, details: f.dom_details || null });
     const body = {
       customer_name: f.customer_name,
       phone: f.phone,
@@ -162,10 +164,12 @@ export default function BookingForm({ booking, onSaved, isAdmin }) {
       <div className="card">
         <h3>مواعيد الطيران</h3>
         <div className="f">
-          {input("الطيران الدولي: التاريخ والوقت", "intl_at", "datetime-local")}
-          {input("ساعات الإقلاع (الدولي)", "intl_details")}
-          {input("الطيران الداخلي (إن وجد)", "dom_at", "datetime-local")}
-          {input("ساعات الإقلاع (الداخلي)", "dom_details")}
+          {input("الطيران الدولي: الإقلاع", "intl_at", "datetime-local")}
+          {input("الطيران الدولي: الوصول", "intl_arr", "datetime-local")}
+          {input("ملاحظات الرحلة الدولية", "intl_details")}
+          {input("الطيران الداخلي: الإقلاع (إن وجد)", "dom_at", "datetime-local")}
+          {input("الطيران الداخلي: الوصول", "dom_arr", "datetime-local")}
+          {input("ملاحظات الرحلة الداخلية", "dom_details")}
         </div>
       </div>
 

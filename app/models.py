@@ -62,6 +62,7 @@ class Flight(Base):
     )
     kind: Mapped[str]
     departs_at: Mapped[datetime | None]
+    arrives_at: Mapped[datetime | None]
     details: Mapped[str | None] = mapped_column(Text)
 
 

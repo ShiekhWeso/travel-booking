@@ -19,6 +19,7 @@ class PaymentOut(PaymentIn):
 class FlightIn(BaseModel):
     kind: str  # international or domestic
     departs_at: datetime | None = None
+    arrives_at: datetime | None = None
     details: str | None = None
 
 
