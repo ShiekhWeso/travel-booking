@@ -14,6 +14,7 @@ from .stats import router as stats_router
 from .config import settings;
 from .alerts import router as alerts_router
 from .reminders import router as reminders_router
+from .reports import router as reports_router
 
 app = FastAPI(title="Travel Booking")
 app.add_middleware(
@@ -29,6 +30,7 @@ app.include_router(dashboard_router)
 app.include_router(stats_router)
 app.include_router(alerts_router)
 app.include_router(reminders_router)
+app.include_router(reports_router)
 
 @app.get("/health")
 def health(db: Session = Depends(get_db)):

@@ -28,3 +28,27 @@ export async function login(email, password) {
   if (!res.ok) throw new Error("البريد الإلكتروني أو كلمة المرور غير صحيحة");
   setToken((await res.json()).access_token);
 }
+
+export async function download(path, filename) {
+  const res = await fetch(API + path, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (res.status === 401) {
+    setToken(null);
+    window.location.reload();
+    return;
+  }
+  if (!res.ok) {
+    let msg = "حدث خطأ";
+    try { msg = (await res.json()).detail || msg; } catch {/* ignore */}
+    throw new Error(msg);
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

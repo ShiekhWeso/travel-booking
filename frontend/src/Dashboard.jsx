@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import MonthlyReport from "./MonthlyReport";
 
 export default function Dashboard({ isAdmin }) {
   const [d, setD] = useState(null);
@@ -111,6 +112,7 @@ export default function Dashboard({ isAdmin }) {
           </div>
         )}
       </div>
+      {isAdmin && <MonthlyReport />}
     </>
   );
 }
