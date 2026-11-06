@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import ARRAY, ForeignKey, Numeric, Text
+from sqlalchemy import ARRAY, DateTime, ForeignKey, Numeric, Text
 from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -110,3 +110,6 @@ class AlertRead(Base):
         ForeignKey("employees.id", ondelete="CASCADE"), primary_key=True
     )
     alert_key: Mapped[str] = mapped_column(primary_key=True)
+    read_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=sql_text("now()")
+    )

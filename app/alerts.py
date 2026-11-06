@@ -1,9 +1,10 @@
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,60 @@ URGENT_MINUTES = 180  # flight within 3 hours = urgent
 AHEAD_DAYS = 3  # flights within 3 days show as info
 KIND = {"international": "دولية", "domestic": "داخلية"}
 ORDER = {"urgent": 0, "today": 1, "message": 2, "info": 3}
+
+READ_TTL = timedelta(hours=1)  # a message disappears 1 hour after it is read
+MAX_AGE_DAYS = 14  # safety net: messages nobody read are deleted after 14 days
+_last_purge: datetime | None = None
+
+
+def _utc(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def purge_messages(db: Session) -> None:
+    """Delete messages for real.
+
+    A message is deleted when every recipient has read it and the last one read
+    it more than READ_TTL ago, or when it is older than MAX_AGE_DAYS.
+    Runs from the alerts poll (no cron needed), at most every 30 seconds.
+    """
+    global _last_purge
+    now = datetime.now(timezone.utc)
+    if _last_purge and now - _last_purge < timedelta(seconds=30):
+        return
+    _last_purge = now
+    try:
+        gone = list(
+            db.scalars(
+                delete(Message)
+                .where(Message.created_at < now - timedelta(days=MAX_AGE_DAYS))
+                .returning(Message.id)
+            )
+        )
+        reads: dict[str, dict[int, datetime]] = defaultdict(dict)
+        for key, emp, at in db.execute(
+            select(AlertRead.alert_key, AlertRead.employee_id, AlertRead.read_at).where(
+                AlertRead.alert_key.like("msg:%")
+            )
+        ):
+            reads[key][emp] = _utc(at)
+        active = set(db.scalars(select(Employee.id).where(Employee.is_active)))
+        cutoff = now - READ_TTL
+        for m in db.scalars(select(Message)):
+            people = {m.to_employee_id} if m.to_employee_id else active - {m.created_by}
+            seen = reads.get(f"msg:{m.id}", {})
+            if people and all(p in seen and seen[p] <= cutoff for p in people):
+                gone.append(m.id)
+        if gone:
+            db.execute(delete(Message).where(Message.id.in_(gone)))
+            db.execute(
+                delete(AlertRead).where(
+                    AlertRead.alert_key.in_([f"msg:{i}" for i in gone])
+                )
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def after(minutes: int) -> str:
@@ -89,6 +144,7 @@ def flight_alerts(b: Booking, now: datetime) -> list[dict]:
 def list_alerts(
     db: Session = Depends(get_db), user: Employee = Depends(current_user)
 ):
+    purge_messages(db)
     now = datetime.now(ZoneInfo(settings.timezone)).replace(tzinfo=None)
     today = now.date()
     is_admin = user.role == "admin"
@@ -123,14 +179,28 @@ def list_alerts(
             }
         )
 
-    # messages from the admin (last 14 days)
+    # when this user read each alert (used to hide messages 1 hour after reading)
+    reads = {
+        k: at
+        for k, at in db.execute(
+            select(AlertRead.alert_key, AlertRead.read_at).where(
+                AlertRead.employee_id == user.id
+            )
+        )
+    }
+    hide_before = datetime.now(timezone.utc) - READ_TTL
+
+    # messages from the admin
     names = {e.id: e.name for e in db.scalars(select(Employee))}
     mstmt = select(Message).where(
         or_(Message.to_employee_id.is_(None), Message.to_employee_id == user.id),
         or_(Message.created_by.is_(None), Message.created_by != user.id),
-        Message.created_at >= datetime.now(timezone.utc) - timedelta(days=14),
+        Message.created_at >= datetime.now(timezone.utc) - timedelta(days=MAX_AGE_DAYS),
     )
     for m in db.scalars(mstmt):
+        read_at = reads.get(f"msg:{m.id}")
+        if read_at is not None and _utc(read_at) <= hide_before:
+            continue  # read more than an hour ago: gone for this user
         items.append(
             {
                 "key": f"msg:{m.id}",
@@ -145,11 +215,8 @@ def list_alerts(
             }
         )
 
-    read = set(
-        db.scalars(select(AlertRead.alert_key).where(AlertRead.employee_id == user.id))
-    )
     for i in items:
-        i["read"] = i["key"] in read
+        i["read"] = i["key"] in reads
     items.sort(key=lambda i: (ORDER[i["level"]], i["when"]))
     return {
         "unread": sum(not i["read"] for i in items),

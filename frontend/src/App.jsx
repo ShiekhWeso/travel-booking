@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Login from "./Login";
 import Bookings from "./Bookings";
 import BookingForm from "./BookingForm";
@@ -23,6 +23,7 @@ export default function App() {
   const [alerts, setAlerts] = useState(null);
   const [panel, setPanel] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const dirty = useRef(false); // true when the booking form has unsaved changes
 
   const loadAlerts = useCallback(() => {
     api("/alerts").then(setAlerts).catch(() => {});
@@ -39,6 +40,18 @@ export default function App() {
     return () => clearInterval(t);
   }, [logged, loadAlerts]);
 
+  // browser tab close / refresh while the form has unsaved data
+  useEffect(() => {
+    const warn = (e) => {
+      if (dirty.current) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
   if (!logged) return <Login onDone={() => setLogged(true)} />;
   if (!me) return <div className="card">جاري التحميل...</div>;
 
@@ -46,9 +59,24 @@ export default function App() {
   const unread = alerts?.unread || 0;
   const tabs = isAdmin ? [...TABS, ["e", "الموظفون"]] : TABS;
 
+  const confirmLeave = () =>
+    !dirty.current ||
+    window.confirm("لديك بيانات لم يتم حفظها. هل أنت متأكد أنك تريد المغادرة؟ ستفقد التعديلات.");
+
   function go(k) {
+    if (!confirmLeave()) return;
+    dirty.current = false;
     setEditing(null);
     setTab(k);
+  }
+
+  function logout() {
+    if (!confirmLeave()) return;
+    dirty.current = false;
+    setToken(null);
+    setLogged(false);
+    setMe(null);
+    setAlerts(null);
   }
 
   return (
@@ -65,7 +93,7 @@ export default function App() {
             {unread > 0 && <span className="badge">{unread > 9 ? "9+" : unread}</span>}
           </button>
           <button onClick={() => setPwOpen(true)}>كلمة المرور</button>
-          <button onClick={() => { setToken(null); setLogged(false); setMe(null); setAlerts(null); }}>
+          <button onClick={logout}>
             خروج ({me.name})
           </button>
         </div>
@@ -87,12 +115,14 @@ export default function App() {
         {tab === "d" && <Dashboard isAdmin={isAdmin} />}
         {tab === "e" && isAdmin && <Employees me={me} />}
         {tab === "n" && (
-          <BookingForm
-            key={editing?.id || "new"}
-            booking={editing}
-            isAdmin={isAdmin}
-            onSaved={() => go("t")}
-          />
+          <div onInput={() => { dirty.current = true; }}>
+            <BookingForm
+              key={editing?.id || "new"}
+              booking={editing}
+              isAdmin={isAdmin}
+              onSaved={() => { dirty.current = false; go("t"); }}
+            />
+          </div>
         )}
       </main>
       <Alerts
