@@ -35,3 +35,5 @@ label{font-size:13px;color:var(--mu);display:block;margin-bottom:4px}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .chip{background:var(--bg);border:1px solid var(--bd);border-radius:99px;padding:4px 12px;font-size:13px}
 .danger{border-color:var(--rd);color:var(--rd)}
+.flag{background:none;border:0;cursor:pointer;font-size:16px;margin-inline-start:6px;padding:0}
+.flag img{width:23px;height:23px;vertical-align:middle;display:inline-block}

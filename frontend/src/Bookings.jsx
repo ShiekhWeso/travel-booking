@@ -14,6 +14,7 @@ export default function Bookings({ onEdit, isAdmin }) {
   const [invoice, setInvoice] = useState(null);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
+  const [note, setNote] = useState(null);
 
   useEffect(() => {
     if (isAdmin) api("/employees").then(setEmployees).catch(() => {});
@@ -124,6 +125,11 @@ export default function Bookings({ onEdit, isAdmin }) {
                 <td>
                   {b.customer_name}
                   {b.starts_soon && <span className="b soon">قريب</span>}
+                  {b.notes &&(
+                    <button className="flag" title="ملاحظة" onClick={() => setNote(b)}>
+                      <img src="/alert.png" alt="ملاحظة" />
+                    </button>
+                  )}
                 </td>
                 <td>{b.destination}</td>
                 <td>{b.trip_start} ← {b.trip_end}</td>
@@ -157,6 +163,16 @@ export default function Bookings({ onEdit, isAdmin }) {
               {invoice.invoice_note || "لا توجد فاتورة مكتوبة لهذا الحجز."}
             </p>
             <button className="btn" onClick={() => setInvoice(null)}>إغلاق</button>
+          </div>
+        </div>
+      )}
+
+      {note && (
+        <div className="modal" onClick={() => setNote(null)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <h3>ملاحظة الحجز #{note.booking_no}</h3>
+            <p className="pre">{note.notes}</p>
+            <button className="btn" onClick={() => setNote(null)}>إغلاق</button>
           </div>
         </div>
       )}
