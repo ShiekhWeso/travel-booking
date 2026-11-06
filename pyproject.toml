@@ -10,7 +10,8 @@ dependencies = [
   "pyjwt",
   "bcrypt",
   "python-multipart",
-  "tzdata"
+  "tzdata",
+  "openpyxl",
 ]
 
 [tool.vercel]
