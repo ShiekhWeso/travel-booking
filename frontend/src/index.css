@@ -75,3 +75,13 @@ header .bell{position:relative;width:44px;height:32px;padding:0;border:0;backgro
 .rem.done span{text-decoration:line-through;opacity:.5}
 .remadd{display:grid;grid-template-columns:160px 1fr auto;gap:8px;margin-top:8px}
 @media(max-width:600px){.remadd{grid-template-columns:1fr}}
+
+.toasts{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;width:min(420px,94vw)}
+.toast{background:#1a0f12;color:#fff;border-radius:12px;padding:12px 14px;border:1px solid #fff2;border-inline-start:6px solid #9b7cf6;box-shadow:0 8px 30px #000a;cursor:pointer;animation:drop .25s ease-out}
+.toast.urgent{border-color:#ff4d4f;background:#3a1519}
+.toast p{margin:4px 0 0;font-size:14px;opacity:.9}
+@keyframes drop{from{transform:translateY(-20px);opacity:0}to{transform:none;opacity:1}}
+.sum{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(440px,94vw);max-height:84vh;overflow:auto;background:#1a0f12;color:#fff;border-radius:14px;border:2px solid #e5484d;padding:16px;display:flex;flex-direction:column;gap:10px}
+.sum h3{margin:0;color:#fff}
+.sumbtns{display:flex;gap:8px;margin-top:4px}
+.sum .x{background:none;border:1px solid #fff5;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit}

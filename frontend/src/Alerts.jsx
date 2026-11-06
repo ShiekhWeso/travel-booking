@@ -8,6 +8,9 @@ export default function Alerts({ open, data, me, isAdmin, onClose, onChanged }) 
   const [to, setTo] = useState("");
   const [text, setText] = useState("");
   const [status, setStatus] = useState("");
+   const [perm, setPerm] = useState(
+    "Notification" in window ? Notification.permission : "unsupported"
+  );
 
   useEffect(() => {
     if (open && isAdmin) api("/employees").then(setEmployees).catch(() => {});
@@ -68,6 +71,15 @@ export default function Alerts({ open, data, me, isAdmin, onClose, onChanged }) 
             <button className="btn" onClick={send}>إرسال</button>
             {status && <small>{status}</small>}
           </div>
+        )}
+
+        {perm === "default" && (
+          <button
+            className="readall"
+            onClick={async () => setPerm(await Notification.requestPermission())}
+          >
+            تفعيل إشعارات المتصفح
+          </button>
         )}
 
         {unreadKeys.length > 0 && (

@@ -4,6 +4,7 @@ import Bookings from "./Bookings";
 import BookingForm from "./BookingForm";
 import Dashboard from "./Dashboard";
 import Alerts from "./Alerts";
+import Notifier from "./Notifier";
 import { api, getToken, setToken } from "./api";
 
 const TABS = [
@@ -17,7 +18,7 @@ export default function App() {
   const [tab, setTab] = useState("d");
   const [editing, setEditing] = useState(null);
   const [me, setMe] = useState(null);
-  const [alerts, setAlerts] = useState({ unread: 0, items: [] });
+  const [alerts, setAlerts] = useState(null);
   const [panel, setPanel] = useState(false);
 
   const loadAlerts = useCallback(() => {
@@ -39,6 +40,7 @@ export default function App() {
   if (!me) return <div className="card">جاري التحميل...</div>;
 
   const isAdmin = me.role === "admin";
+  const unread = alerts?.unread || 0;
 
   function go(k) {
     setEditing(null);
@@ -51,14 +53,14 @@ export default function App() {
         <span>نظام إدارة الحجوزات والرحلات</span>
         <div className="hbtns">
           <button
-            className={"bell" + (alerts.unread ? " ring" : "")}
+            className={"bell" + (unread ? " ring" : "")}
             title="التنبيهات"
             onClick={() => setPanel(true)}
           >
             <img src="/bell.png" alt="التنبيهات" />
-            {alerts.unread > 0 && <span className="badge">{alerts.unread}</span>}
+            {unread > 0 && <span className="badge">{unread > 9 ? "9+" : unread}</span>}
           </button>
-          <button onClick={() => { setToken(null); setLogged(false); setMe(null); }}>
+          <button onClick={() => { setToken(null); setLogged(false); setMe(null); setAlerts(null); }}>
             خروج ({me.name})
           </button>
         </div>
@@ -89,12 +91,13 @@ export default function App() {
       </main>
       <Alerts
         open={panel}
-        data={alerts}
+        data={alerts || { unread: 0, items: [] }}
         me={me}
         isAdmin={isAdmin}
         onClose={() => setPanel(false)}
         onChanged={loadAlerts}
       />
+      <Notifier data={alerts} onOpen={() => setPanel(true)} />
     </>
   );
 }
