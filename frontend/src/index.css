@@ -81,7 +81,7 @@ header .bell{position:relative;width:44px;height:32px;padding:0;border:0;backgro
 .toast.urgent{border-color:#ff4d4f;background:#3a1519}
 .toast p{margin:4px 0 0;font-size:14px;opacity:.9}
 @keyframes drop{from{transform:translateY(-20px);opacity:0}to{transform:none;opacity:1}}
-.sum{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(440px,94vw);max-height:84vh;overflow:auto;background:#1a0f12;color:#fff;border-radius:14px;border:2px solid #e5484d;padding:16px;display:flex;flex-direction:column;gap:10px}
-.sum h3{margin:0;color:#fff}
+.daysum{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(440px,94vw);max-height:84vh;overflow:auto;background:#1a0f12;color:#fff;border-radius:14px;border:2px solid #e5484d;padding:16px;display:flex;flex-direction:column;gap:10px}
+.daysum h3{margin:0;color:#fff}
 .sumbtns{display:flex;gap:8px;margin-top:4px}
-.sum .x{background:none;border:1px solid #fff5;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit}
+.daysum .x{background:none;border:1px solid #fff5;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit}

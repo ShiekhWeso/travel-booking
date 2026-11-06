@@ -96,7 +96,7 @@ export default function Notifier({ data, onOpen }) {
 
       {summary && (
         <div className="drawer-bg" onClick={() => setSummary(null)}>
-          <div className="sum" onClick={(e) => e.stopPropagation()}>
+          <div className="daysum" onClick={(e) => e.stopPropagation()}>
             <h3>ملخص اليوم</h3>
             {summary.map((i) => (
               <div key={i.key} className={`alert ${i.level}`}>
