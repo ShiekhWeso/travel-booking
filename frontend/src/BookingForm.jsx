@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import Reminders from "./Reminders";
 
 const SERVICES = [
   ["flight", "طيران"], ["hotel", "فندق"], ["visa", "تأشيرة"],
@@ -44,6 +45,7 @@ export default function BookingForm({ booking, onSaved, isAdmin }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const [pending, setPending] = useState([]);
 
   useEffect(() => {
     if (isAdmin) api("/employees").then(setEmployees).catch(() => {});
@@ -99,10 +101,18 @@ export default function BookingForm({ booking, onSaved, isAdmin }) {
         })),
     };
     try {
-      await api(booking ? `/bookings/${booking.id}` : "/bookings", {
+      const saved = await api(booking ? `/bookings/${booking.id}` : "/bookings", {
         method: booking ? "PUT" : "POST",
         body: JSON.stringify(body),
       });
+      if (!booking) {
+        for (const r of pending) {
+          await api("/reminders", {
+            method: "POST",
+            body: JSON.stringify({ booking_id: saved.id, ...r }),
+          });
+        }
+      }
       onSaved();
     } catch (e) {
       setError(e.message);
@@ -206,6 +216,11 @@ export default function BookingForm({ booking, onSaved, isAdmin }) {
           </p>
         </div>
       )}
+
+      <div className="card">
+        <h3>التذكيرات</h3>
+        <Reminders bookingId={booking?.id} pending={pending} setPending={setPending} />
+      </div>
 
       <div className="card">
         <h3>{isAdmin ? "الفاتورة والملاحظات" : "الملاحظات"}</h3>

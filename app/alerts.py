@@ -127,6 +127,7 @@ def list_alerts(
     names = {e.id: e.name for e in db.scalars(select(Employee))}
     mstmt = select(Message).where(
         or_(Message.to_employee_id.is_(None), Message.to_employee_id == user.id),
+        or_(Message.created_by.is_(None), Message.created_by != user.id),
         Message.created_at >= datetime.now(timezone.utc) - timedelta(days=14),
     )
     for m in db.scalars(mstmt):
@@ -185,6 +186,8 @@ def send_message(
     user: Employee = Depends(require_admin),
 ):
     body = data.text.strip()
+    if data.to_employee_id == user.id:
+        raise HTTPException(422, "You can't send a message to yourself")
     if not body or len(body) > 500:
         raise HTTPException(422, "Message must be 1 to 500 characters")
     if data.to_employee_id and not db.get(Employee, data.to_employee_id):
