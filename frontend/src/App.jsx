@@ -120,6 +120,7 @@ export default function App() {
               key={editing?.id || "new"}
               booking={editing}
               isAdmin={isAdmin}
+              meId={me.id}
               onSaved={() => { dirty.current = false; go("t"); }}
             />
           </div>

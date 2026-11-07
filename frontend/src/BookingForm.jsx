@@ -7,13 +7,13 @@ const SERVICES = [
   ["events", "تذاكر فعاليات"], ["package", "باقة سياحية كاملة"],
 ];
 
-function initial(b) {
+function initial(b, meId) {
   const fl = (k) => b?.flights.find((f) => f.kind === k);
   return {
     customer_name: b?.customer_name || "",
     phone: b?.phone || "",
     passport_no: b?.passport_no || "",
-    employee_id: b?.employee_id || "",
+    employee_id: b?.employee_id || meId || "",
     other_travelers: b?.other_travelers || "",
     travelers_count: b?.travelers_count || 1,
     destination: b?.destination || "",
@@ -39,8 +39,8 @@ function initial(b) {
   };
 }
 
-export default function BookingForm({ booking, onSaved, isAdmin }) {
-  const [f, setF] = useState(() => initial(booking));
+export default function BookingForm({ booking, onSaved, isAdmin, meId }) {
+  const [f, setF] = useState(() => initial(booking, meId));
   const [employees, setEmployees] = useState([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -139,7 +139,11 @@ export default function BookingForm({ booking, onSaved, isAdmin }) {
             <div>
               <label>الموظف المسؤول</label>
               <select value={f.employee_id} onChange={(e) => set("employee_id", e.target.value)}>
-                <option value="">أنا</option>
+                {employees.length > 0 &&
+                  f.employee_id &&
+                  !employees.some((e) => e.id === Number(f.employee_id)) && (
+                    <option value={f.employee_id}>موظف موقوف</option>
+                  )}
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>{e.name}</option>
                 ))}
