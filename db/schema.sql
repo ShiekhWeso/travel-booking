@@ -1,84 +1,199 @@
--- PostgreSQL schema: travel booking system
+import { useEffect, useState } from "react";
+import { api } from "./api";
 
-CREATE TABLE employees (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE
-);
+const ROLES = { admin: "مدير", employee: "موظف" };
+const EMPTY = { name: "", email: "", password: "", role: "employee" };
 
-CREATE SEQUENCE booking_no_seq START 1001;
+function randomPassword() {
+  const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
 
-CREATE TABLE bookings (
-  id SERIAL PRIMARY KEY,
-  booking_no INT NOT NULL UNIQUE DEFAULT nextval('booking_no_seq'),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  employee_id INT REFERENCES employees(id),
-  customer_name TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  passport_no TEXT,
-  travelers_count INT NOT NULL DEFAULT 1,
-  other_travelers TEXT,
-  destination TEXT NOT NULL,
-  trip_start DATE NOT NULL,
-  trip_end DATE NOT NULL,
-  services TEXT[] NOT NULL DEFAULT '{}',   -- flight, hotel, visa, events, package
-  total_cost NUMERIC(12,2) NOT NULL DEFAULT 0,
-  sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
-  invoice_note TEXT,
-  notes TEXT,
-  extra JSONB NOT NULL DEFAULT '{}',        -- future fields without migrations
-  CHECK (trip_end >= trip_start)
-);
+export default function Employees({ me }) {
+  const [list, setList] = useState([]);
+  const [form, setForm] = useState(EMPTY);
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
 
-CREATE TABLE flights (
-  id SERIAL PRIMARY KEY,
-  booking_id INT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  kind TEXT NOT NULL CHECK (kind IN ('international','domestic')),
-  departs_at TIMESTAMPTZ,
-  details TEXT
-);
+  const load = () =>
+    api("/employees/all").then(setList).catch((e) => setError(e.message));
 
-CREATE TABLE payments (
-  id SERIAL PRIMARY KEY,
-  booking_id INT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  amount NUMERIC(12,2) NOT NULL,
-  due_date DATE,
-  paid_date DATE,                           -- NULL = not paid yet
-  method TEXT
-);
+  useEffect(() => {
+    load();
+  }, []);
 
-CREATE TABLE field_defs (                   -- optional: custom fields later
-  id SERIAL PRIMARY KEY,
-  key TEXT UNIQUE NOT NULL,
-  label TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('text','number','date'))
-);
+  async function call(path, method, body, okMsg) {
+    setError("");
+    setMsg("");
+    try {
+      await api(path, {
+        method,
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      setMsg(okMsg);
+      load();
+      return true;
+    } catch (e) {
+      setError(e.message);
+      return false;
+    }
+  }
 
-CREATE INDEX ON bookings (passport_no);
-CREATE INDEX ON bookings (phone);
-CREATE INDEX ON bookings (trip_start);
-CREATE INDEX ON payments (booking_id, due_date);
+  async function add(e) {
+    e.preventDefault();
+    const ok = await call(
+      "/employees",
+      "POST",
+      form,
+      `تم إنشاء الحساب. البريد: ${form.email.trim().toLowerCase()} | كلمة المرور: ${form.password}`
+    );
+    if (ok) setForm(EMPTY);
+  }
 
--- Statuses are computed, never stored
-CREATE VIEW booking_overview AS
-SELECT b.*,
-  COALESCE(p.paid,0) AS paid,
-  b.sale_price - COALESCE(p.paid,0) AS remaining,
-  b.sale_price - b.total_cost AS expected_profit,
-  CASE WHEN CURRENT_DATE < b.trip_start THEN 'upcoming'
-       WHEN CURRENT_DATE <= b.trip_end THEN 'in_progress'
-       ELSE 'completed' END AS trip_status,
-  (CURRENT_DATE < b.trip_start AND b.trip_start - CURRENT_DATE <= 3) AS starts_soon,
-  CASE WHEN COALESCE(p.overdue,0) > 0 THEN 'late'
-       WHEN COALESCE(p.paid,0) = 0 THEN 'unpaid'
-       WHEN COALESCE(p.paid,0) < b.sale_price THEN 'partial'
-       ELSE 'paid' END AS payment_status
-FROM bookings b
-LEFT JOIN (
-  SELECT booking_id,
-    SUM(amount) FILTER (WHERE paid_date IS NOT NULL) AS paid,
-    COUNT(*) FILTER (WHERE paid_date IS NULL AND due_date < CURRENT_DATE) AS overdue
-  FROM payments GROUP BY booking_id
-) p ON p.booking_id = b.id;
+  function edit(emp) {
+    const name = window.prompt("الاسم", emp.name);
+    if (name === null) return;
+    const email = window.prompt("البريد الإلكتروني", emp.email);
+    if (email === null) return;
+    call(`/employees/${emp.id}`, "PUT", { name, email }, "تم حفظ التعديل");
+  }
+
+  function resetPassword(emp) {
+    const pw = window.prompt(
+      `كلمة مرور جديدة لـ ${emp.name} (8 أحرف على الأقل):`,
+      randomPassword()
+    );
+    if (!pw) return;
+    call(
+      `/employees/${emp.id}/password`,
+      "PUT",
+      { password: pw },
+      `تم تغيير كلمة مرور ${emp.name}. الكلمة الجديدة: ${pw}`
+    );
+  }
+
+  function toggle(emp) {
+    const action = emp.is_active ? "deactivate" : "activate";
+    const text = emp.is_active
+      ? `إيقاف ${emp.name}؟ لن يستطيع تسجيل الدخول، وتبقى حجوزاته كما هي.`
+      : `إعادة تفعيل ${emp.name}؟`;
+    if (!window.confirm(text)) return;
+    call(
+      `/employees/${emp.id}/${action}`,
+      "POST",
+      null,
+      emp.is_active ? "تم إيقاف الحساب" : "تم تفعيل الحساب"
+    );
+  }
+
+  function remove(emp) {
+    if (!window.confirm(`حذف ${emp.name} نهائيًا؟ لا يمكن التراجع.`)) return;
+    call(`/employees/${emp.id}`, "DELETE", null, "تم حذف الموظف");
+  }
+
+  return (
+    <>
+      <div className="card">
+        <h3>إضافة موظف</h3>
+        <form onSubmit={add}>
+          <div className="f">
+            <div>
+              <label>الاسم</label>
+              <input
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label>البريد الإلكتروني</label>
+              <input
+                required
+                type="email"
+                dir="ltr"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </div>
+            <div>
+              <label>كلمة المرور (8 أحرف على الأقل)</label>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  required
+                  minLength={8}
+                  dir="ltr"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                />
+                <button
+                  type="button"
+                  className="sm"
+                  onClick={() => setForm({ ...form, password: randomPassword() })}
+                >
+                  توليد
+                </button>
+              </div>
+            </div>
+            <div>
+              <label>الصلاحية</label>
+              <select
+                value={form.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+              >
+                <option value="employee">موظف</option>
+                <option value="admin">مدير</option>
+              </select>
+            </div>
+          </div>
+          <button className="btn" style={{ marginTop: 12 }}>إضافة</button>
+        </form>
+        {error && <p className="err">{error}</p>}
+        {msg && <p style={{ color: "var(--gr)", fontWeight: 700 }}>{msg}</p>}
+      </div>
+
+      <div className="card">
+        <h3>الموظفون</h3>
+        <div className="wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>الاسم</th>
+                <th>البريد الإلكتروني</th>
+                <th>الصلاحية</th>
+                <th>الحالة</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((emp) => (
+                <tr key={emp.id} style={emp.is_active ? undefined : { opacity: 0.6 }}>
+                  <td>{emp.name}</td>
+                  <td dir="ltr" style={{ textAlign: "start" }}>{emp.email}</td>
+                  <td>{ROLES[emp.role] || emp.role}</td>
+                  <td>
+                    <span className={`b ${emp.is_active ? "paid" : "unpaid"}`}>
+                      {emp.is_active ? "فعّال" : "موقوف"}
+                    </span>
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <button className="sm" onClick={() => edit(emp)}>تعديل</button>{" "}
+                    <button className="sm" onClick={() => resetPassword(emp)}>كلمة المرور</button>{" "}
+                    {emp.id !== me.id && (
+                      <>
+                        <button className="sm" onClick={() => toggle(emp)}>
+                          {emp.is_active ? "إيقاف" : "تفعيل"}
+                        </button>{" "}
+                        <button className="sm danger" onClick={() => remove(emp)}>حذف</button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
