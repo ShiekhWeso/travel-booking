@@ -23,9 +23,13 @@ function initial(b, meId) {
     intl_at: fl("international")?.departs_at?.slice(0, 16) || "",
     intl_details: fl("international")?.details || "",
     intl_arr: fl("international")?.arrives_at?.slice(0, 16) || "",
-    dom_at: fl("domestic")?.departs_at?.slice(0, 16) || "",
-    dom_details: fl("domestic")?.details || "",
-    dom_arr: fl("domestic")?.arrives_at?.slice(0, 16) || "",
+    domestic: (b?.flights || [])
+      .filter((x) => x.kind === "domestic")
+      .map((x) => ({
+        departs_at: x.departs_at?.slice(0, 16) || "",
+        arrives_at: x.arrives_at?.slice(0, 16) || "",
+        details: x.details || "",
+      })),
     total_cost: b?.total_cost != null ? Number(b.total_cost) : "",
     sale_price: b?.sale_price != null ? Number(b.sale_price) : "",
     invoice_note: b?.invoice_note || "",
@@ -66,6 +70,12 @@ export default function BookingForm({ booking, onSaved, isAdmin, meId }) {
     set("payments", f.payments.map((p, j) => (j === i ? { ...p, [k]: v } : p)));
   }
 
+  const setDom = (i, k, v) =>
+    set("domestic", f.domestic.map((d, j) => (j === i ? { ...d, [k]: v } : d)));
+  const addDom = () =>
+    set("domestic", [...f.domestic, { departs_at: "", arrives_at: "", details: "" }]);
+  const delDom = (i) => set("domestic", f.domestic.filter((_, j) => j !== i));
+
   async function save() {
     if (saving) return;
     setSaving(true);
@@ -73,8 +83,15 @@ export default function BookingForm({ booking, onSaved, isAdmin, meId }) {
     const flights = [];
     if (f.intl_at)
       flights.push({ kind: "international", departs_at: f.intl_at, arrives_at: f.intl_arr || null, details: f.intl_details || null });
-    if (f.dom_at)
-      flights.push({ kind: "domestic", departs_at: f.dom_at, arrives_at: f.dom_arr || null, details: f.dom_details || null });
+    for (const d of f.domestic) {
+      if (d.departs_at || d.arrives_at || d.details)
+        flights.push({
+          kind: "domestic",
+          departs_at: d.departs_at || null,
+          arrives_at: d.arrives_at || null,
+          details: d.details || null,
+        });
+    }
     const body = {
       customer_name: f.customer_name,
       phone: f.phone,
@@ -181,10 +198,45 @@ export default function BookingForm({ booking, onSaved, isAdmin, meId }) {
           {input("الطيران الدولي: الإقلاع", "intl_at", "datetime-local")}
           {input("الطيران الدولي: الوصول", "intl_arr", "datetime-local")}
           {input("ملاحظات الرحلة الدولية", "intl_details")}
-          {input("الطيران الداخلي: الإقلاع (إن وجد)", "dom_at", "datetime-local")}
-          {input("الطيران الداخلي: الوصول", "dom_arr", "datetime-local")}
-          {input("ملاحظات الرحلة الداخلية", "dom_details")}
         </div>
+
+        <h4 style={{ margin: "18px 0 0", fontSize: 15 }}>الرحلات الداخلية</h4>
+        {f.domestic.length === 0 && (
+          <p style={{ color: "var(--mu)", fontSize: 13, margin: "6px 0" }}>
+            لا توجد رحلات داخلية
+          </p>
+        )}
+        {f.domestic.map((d, i) => (
+          <div
+            className="f"
+            key={i}
+            style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--bd)", alignItems: "end" }}
+          >
+            <div>
+              <label>رحلة داخلية {i + 1}: الإقلاع</label>
+              <input type="datetime-local" value={d.departs_at}
+                onChange={(e) => setDom(i, "departs_at", e.target.value)} />
+            </div>
+            <div>
+              <label>الوصول</label>
+              <input type="datetime-local" value={d.arrives_at}
+                onChange={(e) => setDom(i, "arrives_at", e.target.value)} />
+            </div>
+            <div>
+              <label>الرحلة (مثال: الإسكندرية ← القاهرة)</label>
+              <input value={d.details}
+                onChange={(e) => setDom(i, "details", e.target.value)} />
+            </div>
+            <div>
+              <button type="button" className="sm danger" onClick={() => delDom(i)}>
+                حذف
+              </button>
+            </div>
+          </div>
+        ))}
+        <button type="button" className="sm" style={{ marginTop: 10 }} onClick={addDom}>
+          + إضافة رحلة داخلية
+        </button>
       </div>
 
       {isAdmin && (

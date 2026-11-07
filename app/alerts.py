@@ -126,13 +126,14 @@ def flight_alerts(b: Booking, now: datetime) -> list[dict]:
             else:
                 continue
             extra = f" ({t:%Y-%m-%d})" if days else ""
+            note = f" - {f.details}" if f.details else ""
             out.append(
                 {
                     "key": f"{tag}:{f.id}:{level}:{t.isoformat()}",
                     "kind": "flight_departure" if tag == "dep" else "flight_arrival",
                     "level": level,
                     "title": f"رحلة {KIND.get(f.kind, '')} {label} {when}",
-                    "text": f"{b.customer_name} - {b.destination} - {t:%H:%M}{extra}",
+                    "text": f"{b.customer_name} - {b.destination} - {t:%H:%M}{extra}{note}",
                     "when": t.isoformat(),
                     **booking_info(b),
                 }
