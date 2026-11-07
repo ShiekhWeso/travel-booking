@@ -69,6 +69,22 @@ def _get(db: Session, employee_id: int) -> Employee:
     return e
 
 
+def _owner_id(db: Session) -> int | None:
+    """The main admin = the first admin account ever created."""
+    return db.scalar(select(func.min(Employee.id)).where(Employee.role == "admin"))
+
+
+def _guard(db: Session, actor: Employee, target: Employee) -> None:
+    """Only the main admin can touch the main admin or other admins."""
+    owner = _owner_id(db)
+    if target.id == actor.id:
+        return
+    if target.id == owner:
+        raise HTTPException(403, "لا يمكن تعديل حساب المدير الرئيسي")
+    if target.role == "admin" and actor.id != owner:
+        raise HTTPException(403, "فقط المدير الرئيسي يستطيع إدارة حسابات المديرين")
+
+
 # ---------- used by the booking form dropdown (any logged-in user) ----------
 @router.get("")
 def list_employees(db: Session = Depends(get_db)):
@@ -83,8 +99,9 @@ def list_employees(db: Session = Depends(get_db)):
 def list_all_employees(
     db: Session = Depends(get_db), user: Employee = Depends(require_admin)
 ):
+    owner = _owner_id(db)
     rows = db.scalars(select(Employee).order_by(Employee.is_active.desc(), Employee.name))
-    return [_out(e) for e in rows]
+    return [{**_out(e), "is_owner": e.id == owner} for e in rows]
 
 
 @router.post("")
@@ -100,6 +117,8 @@ def create_employee(
     _check_password(data.password)
     if data.role not in ROLES:
         raise HTTPException(422, "الصلاحية غير صحيحة")
+    if data.role == "admin" and user.id != _owner_id(db):
+        raise HTTPException(403, "فقط المدير الرئيسي يستطيع إضافة مدير")
     if _email_taken(db, email):
         raise HTTPException(409, "هذا البريد الإلكتروني مستخدم بالفعل")
     e = Employee(
@@ -122,6 +141,7 @@ def update_employee(
     user: Employee = Depends(require_admin),
 ):
     e = _get(db, employee_id)
+    _guard(db, user, e)
     if data.name is not None:
         name = data.name.strip()
         if not name:
@@ -137,6 +157,8 @@ def update_employee(
             raise HTTPException(422, "الصلاحية غير صحيحة")
         if e.id == user.id:
             raise HTTPException(400, "لا يمكنك تغيير صلاحيتك بنفسك")
+        if user.id != _owner_id(db):
+            raise HTTPException(403, "فقط المدير الرئيسي يستطيع تغيير الصلاحيات")
         e.role = data.role
     db.commit()
     db.refresh(e)
@@ -151,6 +173,7 @@ def reset_password(
     user: Employee = Depends(require_admin),
 ):
     e = _get(db, employee_id)
+    _guard(db, user, e)
     _check_password(data.password)
     e.password_hash = hash_password(data.password)
     db.commit()
@@ -164,6 +187,7 @@ def deactivate(
     user: Employee = Depends(require_admin),
 ):
     e = _get(db, employee_id)
+    _guard(db, user, e)
     if e.id == user.id:
         raise HTTPException(400, "لا يمكنك إيقاف حسابك بنفسك")
     e.is_active = False
@@ -178,6 +202,7 @@ def activate(
     user: Employee = Depends(require_admin),
 ):
     e = _get(db, employee_id)
+    _guard(db, user, e)
     e.is_active = True
     db.commit()
     return _out(e)
@@ -190,6 +215,7 @@ def delete_employee(
     user: Employee = Depends(require_admin),
 ):
     e = _get(db, employee_id)
+    _guard(db, user, e)
     if e.id == user.id:
         raise HTTPException(400, "لا يمكنك حذف حسابك بنفسك")
     try:

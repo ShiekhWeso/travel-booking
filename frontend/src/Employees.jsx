@@ -23,6 +23,9 @@ export default function Employees({ me }) {
     load();
   }, []);
 
+  // only the main admin (first admin account) can manage other admins
+  const iAmOwner = list.some((x) => x.is_owner && x.id === me.id);
+
   async function call(path, method, body, okMsg) {
     setError("");
     setMsg("");
@@ -142,7 +145,7 @@ export default function Employees({ me }) {
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
               >
                 <option value="employee">موظف</option>
-                <option value="admin">مدير</option>
+                {iAmOwner && <option value="admin">مدير</option>}
               </select>
             </div>
           </div>
@@ -177,9 +180,13 @@ export default function Employees({ me }) {
                     </span>
                   </td>
                   <td style={{ whiteSpace: "nowrap" }}>
-                    <button className="sm" onClick={() => edit(emp)}>تعديل</button>{" "}
-                    <button className="sm" onClick={() => resetPassword(emp)}>كلمة المرور</button>{" "}
-                    {emp.id !== me.id && (
+                    {(emp.id === me.id || iAmOwner || emp.role !== "admin") && (
+                      <>
+                        <button className="sm" onClick={() => edit(emp)}>تعديل</button>{" "}
+                        <button className="sm" onClick={() => resetPassword(emp)}>كلمة المرور</button>{" "}
+                      </>
+                    )}
+                    {emp.id !== me.id && (iAmOwner || emp.role !== "admin") && (
                       <>
                         <button className="sm" onClick={() => toggle(emp)}>
                           {emp.is_active ? "إيقاف" : "تفعيل"}
