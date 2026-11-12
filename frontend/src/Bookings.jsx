@@ -16,6 +16,13 @@ export default function Bookings({ onEdit, isAdmin }) {
   const [tick, setTick] = useState(0);
   const [note, setNote] = useState(null);
 
+  function fmtDate(v) {
+    if (!v) return "—";
+    const d = new Date(v);
+    if (isNaN(d)) return String(v).slice(0, 10);
+    return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
+  }
+
   useEffect(() => {
     if (isAdmin) api("/employees").then(setEmployees).catch(() => {});
   }, [isAdmin]);
@@ -108,6 +115,7 @@ export default function Bookings({ onEdit, isAdmin }) {
             <tr>
               <th>رقم</th>
               <th>العميل</th>
+              <th>تاريخ إنشاء الحجز</th>
               <th>الوجهة</th>
               <th>الرحلة</th>
               <th>الحالة</th>
@@ -131,6 +139,7 @@ export default function Bookings({ onEdit, isAdmin }) {
                     </button>
                   )}
                 </td>
+                <td>{fmtDate(b.created_at)}</td>
                 <td>{b.destination}</td>
                 <td>{b.trip_start} ← {b.trip_end}</td>
                 <td><span className={`b ${b.trip_status}`}>{TRIP[b.trip_status]}</span></td>
